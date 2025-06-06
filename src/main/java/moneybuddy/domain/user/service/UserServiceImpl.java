@@ -1,25 +1,25 @@
 package moneybuddy.domain.user.service;
 
-import moneybuddy.domain.user.dto.*;
-import moneybuddy.domain.user.entity.UserSettings;
-import moneybuddy.domain.user.repository.UserSettingsRepository;
-import moneybuddy.global.enums.ErrorCode;
-import moneybuddy.global.enums.PrivacyLevel;
-import moneybuddy.global.enums.UserRole;
-import moneybuddy.domain.user.entity.User;
-import moneybuddy.domain.user.repository.UserRepository;
-import moneybuddy.config.JwtTokenProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import moneybuddy.global.exception.GlobalException;
+import lombok.extern.slf4j.Slf4j;
+import moneybuddy.config.JwtTokenProvider;
+import moneybuddy.domain.user.dto.*;
+import moneybuddy.domain.user.entity.User;
+import moneybuddy.domain.user.entity.UserSettings;
+import moneybuddy.domain.user.repository.UserRepository;
+import moneybuddy.domain.user.repository.UserSettingsRepository;
+import moneybuddy.global.enums.PrivacyLevel;
+import moneybuddy.global.enums.UserRole;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
@@ -30,53 +30,18 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponseDto signup(UserSignupRequestDto dto) {
-        // 1. 이메일 중복 확인 및 탈퇴 계정 처리
-        userRepository.findByEmail(dto.getEmail()).ifPresent(existingUser -> {
-            if (existingUser.getIsDeleted()) {
-                // 탈퇴 계정 복구 가능 여부 확인
-                if (existingUser.getDeletedAt() != null &&
-                        existingUser.getDeletedAt().plusDays(30).isBefore(LocalDateTime.now())) {
-                    // 30일 경과 → 탈퇴 계정 완전 삭제
-                    userRepository.delete(existingUser);
-                } else {
-                    // 복구 유도
-                    throw new GlobalException(ErrorCode.USER_DELETED); // "탈퇴한 계정입니다. 복구가 가능합니다."
-                }
-            } else {
-                // 현재 사용 중인 이메일
-                throw new GlobalException(ErrorCode.USER_ALREADY_EXISTS);
-            }
-        });
+        validateEmailUniquenessOrRecover(dto.email());
+        validatePhoneUniqueness(dto.phone());
+        validateNicknameUniqueness(dto.nickname());
 
-        // 2. 전화번호 중복 확인 (isDeleted=false인 계정만 제한)
-        if (dto.getPhone() != null) {
-            userRepository.findByPhone(dto.getPhone()).ifPresent(user -> {
-                if (!user.getIsDeleted()) {
-                    throw new GlobalException(ErrorCode.PHONE_ALREADY_EXISTS); // "이미 사용 중인 전화번호입니다."
-                }
-            });
-        }
-
-        // 3. 닉네임 중복 확인 (탈퇴 후 30일 이내도 사용 불가)
-        userRepository.findByNickname(dto.getNickname()).ifPresent(user -> {
-            if (!user.getIsDeleted()) {
-                throw new GlobalException(ErrorCode.NICKNAME_ALREADY_EXISTS);
-            }
-            if (user.getDeletedAt() != null &&
-                    user.getDeletedAt().plusDays(30).isAfter(LocalDateTime.now())) {
-                throw new GlobalException(ErrorCode.NICKNAME_ALREADY_EXISTS); // 탈퇴 30일 이내 보호
-            }
-        });
-
-        // 4. 사용자 생성
         User user = User.builder()
-                .email(dto.getEmail())
-                .password(passwordEncoder.encode(dto.getPassword()))
-                .nickname(dto.getNickname())
-                .phone(dto.getPhone())
-                .profileImage(dto.getProfileImage())
-                .role(dto.getRole() != null ? dto.getRole() : UserRole.USER)
-                .loginMethod(dto.getLoginMethod())
+                .email(dto.email())
+                .password(passwordEncoder.encode(dto.password()))
+                .nickname(dto.nickname())
+                .phone(dto.phone())
+                .profileImage(dto.profileImage())
+                .role(dto.role() != null ? dto.role() : UserRole.USER)
+                .loginMethod(dto.loginMethod())
                 .isDeleted(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -84,7 +49,6 @@ public class UserServiceImpl implements UserService {
 
         userRepository.save(user);
 
-        // 5. 기본 설정값 저장
         UserSettings settings = UserSettings.builder()
                 .user(user)
                 .notificationEnabled(true)
@@ -96,18 +60,19 @@ public class UserServiceImpl implements UserService {
         return UserResponseDto.from(user);
     }
 
-
     @Override
     public String login(UserLoginRequestDto dto) {
-        User user = userRepository.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new GlobalException(ErrorCode.INVALID_LOGIN));
+        User user = userRepository.findByEmail(dto.email())
+                .orElseThrow(() -> new NoSuchElementException("Invalid login: user not found"));
 
         if (user.getIsDeleted()) {
-            throw new GlobalException(ErrorCode.USER_DELETED); // 탈퇴한 사용자 로그인 차단
+            log.warn("Login attempt for deleted user: {}", dto.email());
+            throw new IllegalStateException("Account is deleted");
         }
 
-        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            throw new GlobalException(ErrorCode.INVALID_LOGIN);
+        if (!passwordEncoder.matches(dto.password(), user.getPassword())) {
+            log.warn("Login password mismatch for user: {}", dto.email());
+            throw new IllegalArgumentException("Invalid password");
         }
 
         return jwtTokenProvider.createToken(user.getId(), user.getRole().name());
@@ -116,73 +81,51 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponseDto getUserById(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GlobalException(ErrorCode.USER_NOT_FOUND));
-        return UserResponseDto.from(user);
+        return UserResponseDto.from(getUserOrThrow(userId));
     }
 
     @Override
     @Transactional
-    public UserResponseDto updateUser(Long userId, UserUpdateRequestDto requestDto) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GlobalException(ErrorCode.USER_NOT_FOUND));
+    public UserResponseDto updateUser(Long userId, UserUpdateRequestDto dto) {
+        User user = getUserOrThrow(userId);
 
-        if (requestDto.getNickname() != null) {
-            user.setNickname(requestDto.getNickname());
-        }
-        if (requestDto.getPhone() != null) {
-            user.setPhone(requestDto.getPhone());
-        }
-        if (requestDto.getProfileImage() != null) {
-            user.setProfileImage(requestDto.getProfileImage());
-        }
+        if (dto.nickname() != null) user.setNickname(dto.nickname());
+        if (dto.phone() != null) user.setPhone(dto.phone());
+        if (dto.profileImage() != null) user.setProfileImage(dto.profileImage());
 
         user.setUpdatedAt(LocalDateTime.now());
-
         return UserResponseDto.from(user);
     }
 
     @Override
     @Transactional
     public void deleteUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GlobalException(ErrorCode.USER_NOT_FOUND));
-
+        User user = getUserOrThrow(userId);
         user.setIsDeleted(true);
         user.setDeletedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
     }
 
-public UserResponseDto recover(String email) {
-    // 탈퇴된 유저 조회
-    Optional<User> optionalUser = userRepository.findByEmailAndIsDeletedTrue(email);
+    public UserResponseDto recover(String email) {
+        User user = getDeletedUserOrThrow(email);
 
-    if (optionalUser.isEmpty()) {
-        // DB에 존재하지 않음 (이미 영구 삭제됐거나 애초에 존재하지 않음)
-        throw new GlobalException(ErrorCode.USER_NOT_FOUND);
+        if (isOverDeletionPeriod(user.getDeletedAt())) {
+            log.info("Attempted to recover expired deleted user: {}", email);
+            throw new IllegalStateException("Deletion recovery period expired");
+        }
+
+        user.setIsDeleted(false);
+        user.setDeletedAt(null);
+        user.setUpdatedAt(LocalDateTime.now());
+
+        return UserResponseDto.from(user);
     }
-
-    User user = optionalUser.get();
-
-    // 복구 기한이 지난 경우
-    if (user.getDeletedAt() != null && user.getDeletedAt().plusDays(30).isBefore(LocalDateTime.now())) {
-        throw new GlobalException(ErrorCode.USER_DELETION_EXPIRED);
-    }
-
-    // 복구 처리
-    user.setIsDeleted(false);
-    user.setDeletedAt(null);
-    user.setUpdatedAt(LocalDateTime.now());
-
-    return UserResponseDto.from(user);
-}
-
 
     @Override
     @Transactional
     public PublicProfileDto getPublicProfile(Long userId) {
         User user = userRepository.findByIdAndIsDeletedFalse(userId)
-                .orElseThrow(() -> new GlobalException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
 
         return PublicProfileDto.from(user.getId(), user.getNickname(), user.getProfileImage());
     }
@@ -191,26 +134,76 @@ public UserResponseDto recover(String email) {
     @Transactional
     public UserSettingsDto getSettings(Long userId) {
         UserSettings settings = userSettingsRepository.findByUserId(userId)
-                .orElseThrow(() -> new GlobalException(ErrorCode.USER_SETTINGS_NOT_FOUND));
+                .orElseThrow(() -> new NoSuchElementException("User settings not found"));
 
-        return UserSettingsDto.builder()
-                .notificationEnabled(settings.getNotificationEnabled())
-                .privacyLevel(settings.getPrivacyLevel())
-                .build();
+        return new UserSettingsDto(settings.getNotificationEnabled(), settings.getPrivacyLevel());
     }
 
     @Override
     @Transactional
     public UserSettingsDto updateSettings(Long userId, UserSettingsUpdateDto dto) {
         UserSettings settings = userSettingsRepository.findByUserId(userId)
-                .orElseThrow(() -> new GlobalException(ErrorCode.USER_SETTINGS_NOT_FOUND));
+                .orElseThrow(() -> new NoSuchElementException("User settings not found"));
 
-        settings.setNotificationEnabled(dto.getNotificationEnabled());
-        settings.setPrivacyLevel(dto.getPrivacyLevel());
+        settings.setNotificationEnabled(dto.notificationEnabled());
+        settings.setPrivacyLevel(dto.privacyLevel());
 
-        return UserSettingsDto.builder()
-                .notificationEnabled(settings.getNotificationEnabled())
-                .privacyLevel(settings.getPrivacyLevel())
-                .build();
+        return new UserSettingsDto(settings.getNotificationEnabled(), settings.getPrivacyLevel());
+    }
+
+    // ======================= 헬퍼 메서드 =======================
+
+    private void validateEmailUniquenessOrRecover(String email) {
+        userRepository.findByEmail(email).ifPresent(existingUser -> {
+            if (existingUser.getIsDeleted()) {
+                if (isOverDeletionPeriod(existingUser.getDeletedAt())) {
+                    userRepository.delete(existingUser);
+                } else {
+                    log.warn("Signup attempted for deleted user within recovery period: {}", email);
+                    throw new IllegalStateException("Deleted user cannot be reused yet");
+                }
+            } else {
+                log.warn("Signup attempted for already registered email: {}", email);
+                throw new IllegalStateException("Email is already registered");
+            }
+        });
+    }
+
+    private void validatePhoneUniqueness(String phone) {
+        if (phone != null) {
+            userRepository.findByPhone(phone).ifPresent(user -> {
+                if (!user.getIsDeleted()) {
+                    log.warn("Signup attempted with already used phone number: {}", phone);
+                    throw new IllegalStateException("Phone number is already in use");
+                }
+            });
+        }
+    }
+
+    private void validateNicknameUniqueness(String nickname) {
+        userRepository.findByNickname(nickname).ifPresent(user -> {
+            if (!user.getIsDeleted()) {
+                log.warn("Signup attempted with duplicate nickname: {}", nickname);
+                throw new IllegalStateException("Nickname is already in use");
+            }
+            if (!isOverDeletionPeriod(user.getDeletedAt())) {
+                log.warn("Signup attempted with nickname in deletion recovery period: {}", nickname);
+                throw new IllegalStateException("Nickname is protected during recovery period");
+            }
+        });
+    }
+
+    private boolean isOverDeletionPeriod(LocalDateTime deletedAt) {
+        return deletedAt != null && deletedAt.plusDays(30).isBefore(LocalDateTime.now());
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
+    }
+
+    private User getDeletedUserOrThrow(String email) {
+        return userRepository.findByEmailAndIsDeletedTrue(email)
+                .orElseThrow(() -> new NoSuchElementException("Deleted user not found"));
     }
 }

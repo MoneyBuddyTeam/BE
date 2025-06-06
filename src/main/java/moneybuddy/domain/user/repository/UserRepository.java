@@ -23,4 +23,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByPhoneAndIsDeletedTrue(String phone);
 
     List<User> findAllByIsDeletedTrueAndDeletedAtBefore(LocalDateTime dateTime);
+
+    boolean existsByNickname(String uniqueNickname);
 }

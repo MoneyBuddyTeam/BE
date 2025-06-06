@@ -27,3 +27,12 @@ logs/
 
 # 환경 변수 파일
 .env
+
+# Spring Boot Config Files
+application.yml
+application-secret.yml
+application-*.yml
+application.properties
+application-*.properties
+application-local.yml
+application-oauth.yml
