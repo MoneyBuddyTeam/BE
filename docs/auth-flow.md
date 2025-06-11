@@ -130,6 +130,14 @@ json
 
 **탈퇴한 지 30일 이내의 계정만 복구할 수 있으며, 이후에는 복구 불가 오류가 반환됩니다.**
 
+### 2.5 탈퇴 유저 영구 삭제 (스케줄러)
+
+탈퇴 처리된 유저(`is_deleted = true`)는 30일 동안 복구가 가능하며,  
+이후에는 **Scheduler**를 통해 DB에서 영구 삭제됩니다.
+
+- 스케줄 주기: 매일 새벽 3시
+- 구현 클래스: `UserCleanupScheduler`
+
 ---
 
 ## 3. 오류 코드 및 예외 처리 방식
@@ -160,28 +168,7 @@ json
 
 ---
 
-## 4. Postman 테스트 스크립트 정리
 
-### 공통 Header 설정
-
-```http
-Authorization: Bearer <발급받은 토큰>
-Content-Type: application/json
-```
-
-### 테스트 시나리오
-
-1. 회원가입 → `POST /api/v1/users`
-2. 로그인 → `POST /api/v1/users/login` → 토큰 발급
-3. 사용자 조회 → `GET /api/v1/users/{id}` → 헤더에 토큰 포함
-4. 정보 수정 → `PATCH /api/v1/users/{id}`
-5. 계정 삭제 → `DELETE /api/v1/users/{id}`
-6. 설정 조회/변경 → `GET`, `PUT /api/v1/users/{user_id}/settings`
-
-> 각 요청은 발급된 토큰을 반드시 포함해야 하며, 권한에 따라 접근이 제한됩니다.
-
----
-
-## 다음 항목
+## 미구현
 
 * OAuth2.0 기반 소셜 로그인 확장
