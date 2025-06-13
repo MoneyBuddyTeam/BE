@@ -46,6 +46,10 @@ dependencies {
 	// Swagger 문서화
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
 
+	// Redis 의존성
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.session:spring-session-data-redis'
+
 	// 데이터베이스
 	runtimeOnly 'com.mysql:mysql-connector-j'
 
