@@ -1,4 +1,4 @@
-package moneybuddy.config;
+package moneybuddy.util;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

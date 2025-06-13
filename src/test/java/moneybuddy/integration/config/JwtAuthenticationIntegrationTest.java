@@ -5,6 +5,7 @@ import moneybuddy.domain.user.entity.User;
 import moneybuddy.domain.user.repository.UserRepository;
 import moneybuddy.global.enums.LoginMethod;
 import moneybuddy.global.enums.UserRole;
+import moneybuddy.util.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +30,7 @@ class JwtAuthenticationIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private moneybuddy.config.JwtTokenProvider jwtTokenProvider;
+    private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
     private PasswordEncoder passwordEncoder;

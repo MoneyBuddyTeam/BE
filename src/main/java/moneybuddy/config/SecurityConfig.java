@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import moneybuddy.domain.auth.oauth.CustomOAuth2UserService;
 import moneybuddy.domain.auth.oauth.OAuth2AuthenticationFailureHandler;
 import moneybuddy.domain.auth.oauth.OAuth2AuthenticationSuccessHandler;
+import moneybuddy.util.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -35,12 +36,14 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/users/oauth-signup").permitAll()
                         .requestMatchers(
                                 "/", "/index.html",
                                 "/api/v1/users", "/api/v1/users/login",
                                 "/swagger-ui/**", "/v3/api-docs/**",
                                 "/oauth2/**", "/login/**"
                         ).permitAll()
+                        .requestMatchers("/ws-stomp").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

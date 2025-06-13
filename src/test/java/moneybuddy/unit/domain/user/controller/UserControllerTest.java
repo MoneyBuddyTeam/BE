@@ -1,4 +1,4 @@
-package moneybuddy.domain.user.controller;
+package moneybuddy.unit.domain.user.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import moneybuddy.domain.user.dto.*;
@@ -66,7 +66,7 @@ class UserControllerTest {
         mockMvc.perform(post("/api/v1/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDto)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
                 .andExpect(content().string(containsString("Invalid password")));
     }
 
@@ -229,8 +229,8 @@ class UserControllerTest {
 
         // when & then
         mockMvc.perform(get("/api/v1/users/{id}", userId))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("User not found"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Invalid credentials"));
     }
 
     @Test
@@ -281,8 +281,8 @@ class UserControllerTest {
         mockMvc.perform(put("/api/v1/users/{id}", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDto)))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("User not found"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Invalid credentials"));
     }
 
     @Test
@@ -308,8 +308,8 @@ class UserControllerTest {
 
         // when & then
         mockMvc.perform(delete("/api/v1/users/{id}", userId))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("User not found"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Invalid credentials"));
     }
 
     @Test
@@ -342,8 +342,8 @@ class UserControllerTest {
 
         // when & then
         mockMvc.perform(get("/api/v1/users/{id}/profile", userId))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("User not found"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Invalid credentials"));
     }
 
     @Test
@@ -445,8 +445,8 @@ class UserControllerTest {
         mockMvc.perform(post("/api/v1/users/recover")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDto)))
-                .andExpect(status().isNotFound())
-                .andExpect(content().string("Deleted user not found"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Invalid credentials"));
     }
 
     @Test

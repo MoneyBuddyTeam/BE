@@ -1,6 +1,6 @@
 package moneybuddy.domain.user.service;
 
-import moneybuddy.config.JwtTokenProvider;
+import moneybuddy.util.JwtTokenProvider;
 import moneybuddy.domain.user.dto.*;
 import moneybuddy.domain.user.entity.User;
 import moneybuddy.domain.user.entity.UserSettings;

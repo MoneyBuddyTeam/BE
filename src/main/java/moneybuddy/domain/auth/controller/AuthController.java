@@ -4,20 +4,24 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import moneybuddy.config.JwtTokenProvider;
 import moneybuddy.domain.auth.entity.RefreshToken;
 import moneybuddy.domain.auth.repository.RefreshTokenRepository;
 import moneybuddy.domain.auth.service.AuthService;
+import moneybuddy.domain.auth.service.OAuthUnlinkService;
 import moneybuddy.domain.user.entity.User;
 import moneybuddy.domain.user.repository.UserRepository;
+import moneybuddy.util.CookieUtil;
+import moneybuddy.util.JwtTokenProvider;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
@@ -30,6 +34,8 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final OAuthUnlinkService oAuthUnlinkService;
+    private final CookieUtil cookieUtil;
 
     @Operation(
             summary = "Access Token 재발급",
@@ -45,7 +51,7 @@ public class AuthController {
             @Parameter(hidden = true) HttpServletRequest request,
             @Parameter(hidden = true) HttpServletResponse response) {
 
-        String refreshToken = extractTokenFromCookie(request, "refresh_token");
+        String refreshToken = cookieUtil.getTokenFromCookie(request, "refresh_token");
 
         if (refreshToken == null) {
             return ResponseEntity.status(HttpServletResponse.SC_UNAUTHORIZED)
@@ -91,14 +97,19 @@ public class AuthController {
         return "로그아웃 완료";
     }
 
-    private String extractTokenFromCookie(HttpServletRequest request, String name) {
-        if (request.getCookies() != null) {
-            for (Cookie cookie : request.getCookies()) {
-                if (name.equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        return null;
+    @Operation(
+            summary = "OAuth2 소셜 연동 해제",
+            description = "현재 로그인한 사용자의 소셜 로그인 연동을 해제합니다. 연동 해제 후 loginMethod는 EMAIL로 전환되며, 비밀번호가 없을 경우 설정을 유도합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "연동 해제 성공"),
+            @ApiResponse(responseCode = "401", description = "인증되지 않은 사용자"),
+            @ApiResponse(responseCode = "500", description = "복호화 실패 또는 외부 API 오류")
+    })
+    @DeleteMapping("/unlink")
+    public ResponseEntity<String> unlink(@AuthenticationPrincipal User user) {
+        oAuthUnlinkService.unlink(user);
+        return ResponseEntity.ok("소셜 연동이 해제되었습니다.");
     }
+
 }

@@ -3,7 +3,6 @@ package moneybuddy.domain.user.service;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import moneybuddy.config.JwtTokenProvider;
 import moneybuddy.domain.user.dto.*;
 import moneybuddy.domain.user.entity.User;
 import moneybuddy.domain.user.entity.UserSettings;
@@ -11,6 +10,7 @@ import moneybuddy.domain.user.repository.UserRepository;
 import moneybuddy.domain.user.repository.UserSettingsRepository;
 import moneybuddy.global.enums.PrivacyLevel;
 import moneybuddy.global.enums.UserRole;
+import moneybuddy.util.JwtTokenProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -71,6 +71,9 @@ public class UserServiceImpl implements UserService {
         }
 
         if (!passwordEncoder.matches(dto.password(), user.getPassword())) {
+            log.info("입력 비밀번호: {}", dto.password());
+            log.info("DB 저장 비밀번호: {}", user.getPassword());
+            log.info("일치 여부: {}", passwordEncoder.matches(dto.password(), user.getPassword()));
             log.warn("Login password mismatch for user: {}", dto.email());
             throw new IllegalArgumentException("Invalid password");
         }

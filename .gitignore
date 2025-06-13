@@ -36,3 +36,9 @@ application.properties
 application-*.properties
 application-local.yml
 application-oauth.yml
+
+# frontend 테스트 디렉토리 무시
+/frontend-test/
+/**/frontend-test/
+/frontend-test/*
+!/frontend-test/.gitignore

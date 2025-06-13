@@ -1,12 +1,14 @@
 package moneybuddy.domain.auth.entity;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Getter
+@Builder
 public class RefreshToken {
 
     @Id
