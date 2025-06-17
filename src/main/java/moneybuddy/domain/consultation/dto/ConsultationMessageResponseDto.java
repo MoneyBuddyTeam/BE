@@ -40,7 +40,9 @@ public record ConsultationMessageResponseDto(
     @Schema(description = "읽음 여부", example = "true")
     boolean isRead
 ) {
-    public static ConsultationMessageResponseDto from(ConsultationMessage entity) {
+
+    // ✅ Redis 기반 isRead 값을 외부에서 주입하는 팩토리 메서드
+    public static ConsultationMessageResponseDto from(ConsultationMessage entity, boolean isReadByReceiver) {
         return new ConsultationMessageResponseDto(
             entity.getId(),
             entity.getSender() != null ? entity.getSender().getId() : null,
@@ -50,7 +52,7 @@ public record ConsultationMessageResponseDto(
             entity.getImageUrl(),
             entity.getType(),
             entity.getSentAt(),
-            entity.isRead()
+            isReadByReceiver
         );
     }
 }

@@ -1,5 +1,6 @@
 package moneybuddy.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import moneybuddy.domain.auth.oauth.CustomOAuth2UserService;
 import moneybuddy.domain.auth.oauth.OAuth2AuthenticationFailureHandler;
@@ -7,6 +8,7 @@ import moneybuddy.domain.auth.oauth.OAuth2AuthenticationSuccessHandler;
 import moneybuddy.util.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -14,8 +16,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import jakarta.servlet.http.HttpServletResponse;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -43,7 +43,20 @@ public class SecurityConfig {
                                 "/swagger-ui/**", "/v3/api-docs/**",
                                 "/oauth2/**", "/login/**"
                         ).permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/challenges").hasAnyRole("ADMIN", "ADVISOR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/challenges/**").permitAll()
                         .requestMatchers("/ws-stomp").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/challenge-participations/*/missions").hasAnyRole("ADMIN", "ADVISOR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/challenge-participations/*/missions").hasAnyRole("USER", "ADVISOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/missions/*").hasAnyRole("USER", "ADVISOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/missions/*/status").hasAnyRole("USER", "ADVISOR", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/missions/*/uploads").hasRole("USER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/missions/*/uploads").hasAnyRole("USER", "ADVISOR", "ADMIN")
+
+                        .requestMatchers(HttpMethod.POST, "/api/v1/missions/*/feedbacks").hasRole("ADVISOR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/missions/*/feedbacks").hasAnyRole("USER", "ADVISOR", "ADMIN")
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

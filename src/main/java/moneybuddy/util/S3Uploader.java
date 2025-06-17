@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.UUID;
 
@@ -50,6 +51,18 @@ public class S3Uploader {
     private String extractFileKey(String fileUrl) {
         // URL에서 버킷 도메인을 제거한 상대 경로를 추출
         return fileUrl.substring(fileUrl.indexOf(bucket) + bucket.length() + 1);
+    }
+
+    public String uploadReportChart(byte[] imageBytes, String filename) {
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(imageBytes.length);
+        metadata.setContentType("image/png");
+
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+
+        amazonS3.putObject(bucket, filename, inputStream, metadata);
+
+        return amazonS3.getUrl(bucket, filename).toString();
     }
 
 }

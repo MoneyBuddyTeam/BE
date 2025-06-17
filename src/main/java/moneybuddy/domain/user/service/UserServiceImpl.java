@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 @Service
@@ -61,7 +63,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public String login(UserLoginRequestDto dto) {
+    public Map<String, Object> login(UserLoginRequestDto dto) {
         User user = userRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new NoSuchElementException("Invalid login: user not found"));
 
@@ -71,15 +73,21 @@ public class UserServiceImpl implements UserService {
         }
 
         if (!passwordEncoder.matches(dto.password(), user.getPassword())) {
-            log.info("입력 비밀번호: {}", dto.password());
-            log.info("DB 저장 비밀번호: {}", user.getPassword());
-            log.info("일치 여부: {}", passwordEncoder.matches(dto.password(), user.getPassword()));
             log.warn("Login password mismatch for user: {}", dto.email());
             throw new IllegalArgumentException("Invalid password");
         }
 
-        return jwtTokenProvider.createToken(user.getId(), user.getRole().name());
+        String token = jwtTokenProvider.createToken(user.getId(), user.getRole().name());
+
+        // JSON 응답 구성
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", token);
+        result.put("nickname", user.getNickname());
+        result.put("userId", user.getId());
+
+        return result;
     }
+
 
     @Override
     @Transactional

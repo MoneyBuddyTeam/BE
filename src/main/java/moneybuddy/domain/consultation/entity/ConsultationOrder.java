@@ -57,9 +57,6 @@ public class ConsultationOrder {
     @Column(nullable = false)
     private ConsultationStatus status;
 
-    // 상담방 연결 여부 (필요 시)
-    private boolean consultationRoomCreated;
-
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

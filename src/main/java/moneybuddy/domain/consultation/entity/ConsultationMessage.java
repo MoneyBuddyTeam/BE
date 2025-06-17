@@ -47,9 +47,6 @@ public class ConsultationMessage {
     @CreationTimestamp
     private LocalDateTime sentAt;
 
-    @Column(name = "is_read", nullable = false)
-    private boolean isRead = false;
-
     private boolean isDeletedBySender;
     private boolean isDeletedByReceiver;
 

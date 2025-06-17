@@ -2,12 +2,14 @@ package moneybuddy.domain.user.service;
 
 import moneybuddy.domain.user.dto.*;
 
+import java.util.Map;
+
 public interface UserService {
     // 회원가입
     UserResponseDto signup(UserSignupRequestDto requestDto);
 
     // 로그인
-    String login(UserLoginRequestDto requestDto);
+    Map<String, Object> login(UserLoginRequestDto requestDto);
 
     // 특정 사용자 정보 조회
     UserResponseDto getUserById(Long userId);

@@ -10,6 +10,9 @@ import moneybuddy.domain.consultation.repository.ConsultationMessageRepository;
 import moneybuddy.domain.consultation.repository.ConsultationRoomRepository;
 import moneybuddy.domain.user.entity.User;
 import moneybuddy.domain.user.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +27,11 @@ public class ConsultationMessageService {
     private final ConsultationMessageRepository messageRepository;
     private final ConsultationRoomRepository roomRepository;
     private final UserRepository userRepository;
+    private final ConsultationMessageRepository consultationMessageRepository;
+    private final StringRedisTemplate redisTemplate;
 
     @Transactional
-    public void saveMessage(ConsultationMessageDto dto) {
+    public ConsultationMessageResponseDto saveMessage(ConsultationMessageDto dto) {
         ConsultationRoom room = roomRepository.findById(dto.consultationRoomId())
                 .orElseThrow(() -> new IllegalArgumentException("상담방을 찾을 수 없습니다."));
 
@@ -44,16 +49,32 @@ public class ConsultationMessageService {
                 .message(dto.message())
                 .type(dto.type())
                 .imageUrl(dto.imageUrl())
-                .isRead(false)
-                .isDeletedBySender(false)
-                .isDeletedByReceiver(false)
                 .sentAt(dto.sentAt() != null ? dto.sentAt() : LocalDateTime.now())
-                .build();
+                .isDeletedBySender(false).isDeletedByReceiver(false).build();
 
-        messageRepository.save(message);
+        // 1️⃣ DB에 메시지 저장
+        ConsultationMessage savedMessage = messageRepository.save(message);
 
+        // 2️⃣ Redis에서 receiver의 lastRead 메시지 ID 조회
+        String redisKey = String.format("chat:lastRead:%d:%d", room.getId(), receiver.getId());
+        String lastReadIdStr = redisTemplate.opsForValue().get(redisKey);
+
+        boolean isReadByReceiver = false;
+        if (lastReadIdStr != null) {
+            try {
+                long lastReadId = Long.parseLong(lastReadIdStr);
+                isReadByReceiver = lastReadId >= savedMessage.getId();
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        // 3️⃣ 마지막 메시지 내용 갱신
         room.updateLastMessage(dto.message() != null ? dto.message() : "[이미지]");
+
+        // 4️⃣ 메시지 응답 DTO 반환
+        return ConsultationMessageResponseDto.from(savedMessage, isReadByReceiver);
     }
+
 
     @Transactional(readOnly = true)
     public List<ConsultationMessageResponseDto> getMessagesForConsultationRoom(Long roomId, User loginUser) {
@@ -69,6 +90,21 @@ public class ConsultationMessageService {
 
         List<ConsultationMessage> messages = messageRepository.findByConsultationRoomId(roomId);
 
+        // ✅ Redis에서 현재 로그인 사용자의 lastRead ID 가져오기
+        String redisKey = String.format("chat:lastRead:%d:%d", roomId, loginUser.getId());
+        String lastReadIdStr = redisTemplate.opsForValue().get(redisKey);
+        long lastReadId = -1L;
+
+        try {
+            if (lastReadIdStr != null) {
+                lastReadId = Long.parseLong(lastReadIdStr);
+            }
+        } catch (NumberFormatException ignored) {
+        }
+
+        // ✅ effectively final 변수로 복사
+        final long finalLastReadId = lastReadId;
+
         return messages.stream()
                 .filter(msg -> {
                     if (loginUser.equals(msg.getSender())) {
@@ -77,9 +113,13 @@ public class ConsultationMessageService {
                         return !msg.isDeletedByReceiver();
                     }
                 })
-                .map(ConsultationMessageResponseDto::from)
+                .map(msg -> {
+                    boolean isReadByMe = loginUser.equals(msg.getReceiver()) && msg.getId() <= finalLastReadId;
+                    return ConsultationMessageResponseDto.from(msg, isReadByMe);
+                })
                 .toList();
     }
+
 
     @Transactional
     public void leaveConsultationRoom(Long roomId, User loginUser) {
@@ -114,5 +154,11 @@ public class ConsultationMessageService {
                 message.getImageUrl(),
                 message.getSentAt()
         );
+    }
+
+
+    public Page<ConsultationMessageDto> getMessages(Long roomId, Pageable pageable) {
+        return consultationMessageRepository.findByConsultationRoomIdAndIsDeletedBySenderFalse(roomId, pageable)
+                .map(ConsultationMessageDto::fromEntity);
     }
 }

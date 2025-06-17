@@ -4,13 +4,18 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import moneybuddy.domain.user.dto.*;
 import moneybuddy.domain.user.entity.User;
 import moneybuddy.domain.user.service.UserService;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -31,9 +36,23 @@ public class UserController {
     @ApiResponse(responseCode = "200", description = "로그인 성공",
             content = @Content(schema = @Schema(implementation = String.class)))
     @PostMapping("/login")
-    public String login(@Valid @RequestBody UserLoginRequestDto requestDto) {
-        return userService.login(requestDto);
+    public ResponseEntity<Map<String, Object>> login(@RequestBody UserLoginRequestDto dto, HttpServletResponse response) {
+        Map<String, Object> result = userService.login(dto);
+        String token = (String) result.get("token");
+
+        ResponseCookie cookie = ResponseCookie.from("token", token)
+                .httpOnly(true)
+                .secure(false) // 배포 시 true
+                .path("/")
+                .maxAge(60 * 60 * 24) // 1일
+                .sameSite("Lax")      // "Strict" 또는 "None"도 가능
+                .build();
+
+        response.addHeader("Set-Cookie", cookie.toString());
+
+        return ResponseEntity.ok(result);
     }
+
 
     @Operation(summary = "사용자 조회", description = "ID로 특정 사용자 정보를 조회합니다.")
     @ApiResponse(responseCode = "200", description = "조회 성공",

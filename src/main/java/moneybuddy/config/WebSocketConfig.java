@@ -19,7 +19,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-stomp")
                 .setAllowedOrigins("http://localhost:3000")  // CORS 허용
-                .addInterceptors(jwtHandshakeInterceptor);
+                .addInterceptors(jwtHandshakeInterceptor)
+                .withSockJS();
     }
 
     @Override

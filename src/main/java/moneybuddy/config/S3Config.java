@@ -18,10 +18,12 @@ public class S3Config {
     @Value("${cloud.aws.credential.secret-key}")
     private String secretKey;
 
+    @Value("${cloud.aws.s3.bucket}")
+    private String region;
+
     @Bean
     public AmazonS3 amazonS3() {
-
-        String region = "us-east-1";
+        // 로컬 테스트 시에는 AWS credentials가 필요하지 않음
 
         if (accessKey == null || secretKey == null) {
             throw new IllegalArgumentException("Access key or secret key is missing!");
